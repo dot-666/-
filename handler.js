@@ -10,6 +10,7 @@ const { jidDecode, jidEncode } = require('@whiskeysockets/baileys');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
+const lolcatjs = require('lolcatjs'); // Added for colorful logging
 
 // Group metadata cache to prevent rate limiting
 const groupMetadataCache = new Map();
@@ -548,6 +549,59 @@ const handleMessage = async (sock, msg) => {
     }
     
     body = (body || '').trim();
+
+    // ==================== LOGGING BLOCK ====================
+    try {
+      if (msg.message) {  // Only log if there is a message object
+        const now = new Date();
+        const dayz = now.toLocaleDateString('en-US', { weekday: 'long' });
+        const timez = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const datez = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+        // Determine message type
+        const mtype = messageType || (content ? Object.keys(content).find(key => 
+          !['protocolMessage','senderKeyDistributionMessage','messageContextInfo'].includes(key)
+        ) : 'N/A');
+
+        // Try to get sender's pushname
+        let pushname = sender.split('@')[0];
+        try {
+          if (sock.store?.contacts?.[sender]?.notify) {
+            pushname = sock.store.contacts[sender].notify;
+          } else if (sock.store?.contacts?.[sender]?.name) {
+            pushname = sock.store.contacts[sender].name;
+          }
+        } catch (e) {
+          // fallback to number
+        }
+
+        // Group name if applicable
+        const groupName = isGroup && groupMetadata ? groupMetadata.subject : 'N/A';
+
+        // Owner/bot check
+        const isOwnerSender = isOwner(sender);
+        const isBotItself = msg.key.fromMe;
+
+        lolcatjs.fromString(`┏━━━━━━━━━━━━━『  JUNE ULTRAS2  』━━━━━━━━━━━━━─`);
+        lolcatjs.fromString(`»  Sent Time: ${dayz}, ${timez}`);
+        lolcatjs.fromString(`»  Date: ${datez}`);
+        lolcatjs.fromString(`»  Message Type: ${mtype || 'N/A'}`);
+        lolcatjs.fromString(`»  Sender Name: ${pushname || 'N/A'}`);
+        lolcatjs.fromString(`»  Chat ID: ${from?.split('@')[0] || 'N/A'}`);
+        if (isGroup) {
+          lolcatjs.fromString(`»  Group: ${groupName}`);
+          lolcatjs.fromString(`»  Group JID: ${from?.split('@')[0] || 'N/A'}`);
+        }
+        lolcatjs.fromString(`»  Message: ${body || 'N/A'}`);
+        lolcatjs.fromString(`»  Is Bot Owner: ${isOwnerSender ? 'Yes' : 'No'}`);
+        lolcatjs.fromString(`»  Is Bot Itself: ${isBotItself ? 'Yes' : 'No'}`);
+        lolcatjs.fromString('┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━─ ⳹\n\n');
+      }
+    } catch (logError) {
+      // Silently ignore logging errors – they shouldn't interrupt message handling
+      console.error('Logging error:', logError.message);
+    }
+    // ==================== END LOGGING BLOCK ====================
     
     // Check antiall protection (owner only feature)
     if (isGroup) {
